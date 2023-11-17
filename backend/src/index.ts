@@ -1,623 +1,233 @@
-// import { config } from "dotenv"
-// import { IBundler, Bundler } from '@biconomy/bundler'
-// import { ChainId } from "@biconomy/core-types"
-// import { BiconomySmartAccount, BiconomySmartAccountConfig, DEFAULT_ENTRYPOINT_ADDRESS } from "@biconomy/account"
-// import { Wallet, providers, ethers } from 'ethers';
-// import {
-//   IPaymaster,
-//   BiconomyPaymaster,
-//   IHybridPaymaster,
-//   PaymasterMode,
-//   SponsorUserOperationDto,
-// } from "@biconomy/paymaster";const { ERC20ABI } = require('../abi')
-// import express from 'express';
-// import { connect } from './database';
-// import bodyParser from 'body-parser';
-// import { User } from './models';
-// import { Business } from './businessModel'
-// import bcrypt from 'bcrypt';
-// import { Request, Response } from 'express';
-// import jwt from 'jsonwebtoken';
-// import cors from 'cors'
-// import fetch from "node-fetch";
-// import { PushAPI } from '@pushprotocol/restapi'
-// import Binance from 'binance-api-node'
 
 
-// config()
+// import { newKit } from "@celo/contractkit";
+// import { OdisUtils } from "@celo/identity";
+// import { AuthSigner, OdisContextName } from "@celo/identity/lib/odis/query";
+// async function main() {
+//   // the issuer is the account that is registering the attestation
+//   let ISSUER_PRIVATE_KEY = "df22c9fc78bb9ddc80605f85ef479330b3f2907a9386835e725d105f07945ecf";
 
+//   // create alfajores contractKit instance with the issuer private key
+//   // const kit = await newKit("https://alfajores-forno.celo-testnet.org");
+//   const kit = await newKit("https://forno.celo.org");
 
+//   kit.addAccount(ISSUER_PRIVATE_KEY);
+//   const issuerAddress =
+//     kit.web3.eth.accounts.privateKeyToAccount(ISSUER_PRIVATE_KEY).address;
+//   kit.defaultAccount = issuerAddress;
 
-// //initial configuration
-// const bundler: IBundler = new Bundler({
-//   bundlerUrl: 'https://bundler.biconomy.io/api/v2/80001/nJPK7B3ru.dd7f7861-190d-41bd-af80-6877f74b8f44',     
-//   chainId: ChainId.POLYGON_MUMBAI,
-//   entryPointAddress: DEFAULT_ENTRYPOINT_ADDRESS,
-// })
-// const paymaster: IPaymaster = new BiconomyPaymaster({
-//   paymasterUrl:
-//       "https://paymaster.biconomy.io/api/v1/80001/HaTCCk72C.3dec203b-4396-4337-b40a-8ac1ab0cb0ea",
-// });
-// const provider = new providers.JsonRpcProvider("https://rpc.ankr.com/polygon_mumbai")
+//   // information provided by user, issuer should confirm they do own the identifier
+//   const userPlaintextIdentifier = "12398";
+//   const userAccountAddress = "0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1";
 
-// interface CacheData {
-//   // balanceInUSDC: any; 
-//   // balanceInKES: string;
-//   rate: any; 
-// }
+//   // time at which issuer verified the user owns their identifier
+//   const attestationVerifiedTime = Date.now();
 
-// // In-memory cache
-// const cache: {
-//   lastFetch: number;
-//   data: CacheData | null; // Initially, there's no data, so it's null, but it can later hold a CacheData object
-// } = {
-//   lastFetch: 0,
-//   data: null
-// };
 
-
-
-// const app = express();
-// const PORT = 8000;
-// app.use(cors({
-//   origin: '*' // Allow any origin
-// }));
-// app.options('*', cors()); // This will enable preflight requests for all routes
-
-// app.use(express.json());
-
-// // Middlewares
-// app.use(bodyParser.json());
-
-
-// const SALT_ROUNDS = 10; // Consider storing this in environment variables
-
-// let smartAccount: any;
-
-// app.post('/auth', async (req: Request, res: Response) => {
-//   const { phoneNumber, password } = req.body;
-  
-//     if (!phoneNumber || !password) {
-//       return res.status(400).send({ message: "Phone number and password are required!" });
-//     }
-  
-//     let user = await User.findOne({ phoneNumber: phoneNumber });
-//     // If user exists, attempt login
-//     if (user) {
-//       const isPasswordValid = await bcrypt.compare(password, user.password);
-//       if (!isPasswordValid) {
-//         return res.status(401).send({ message: "Invalid credentials!" });
-//       }
-//       let privateKeyForUser = user.privateKey;
-
-//       let userAccount = await instanceAccount(privateKeyForUser)
-//        smartAccount = userAccount
-//        const token = jwt.sign({ phoneNumber: user.phoneNumber, walletAddress: user.walletAddress }, 'zero', { expiresIn: '1h' });
-//        res.send({ token, message: "Logged in successfully!", walletAddress: user.walletAddress, phoneNumber: user.phoneNumber });
-//     } 
-//     // If user doesn't exist, attempt registration
-//     else {
-//       const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-//       const userSmartAccount = await createAccount();
-//       const {biconomySmartAccount, pk} = userSmartAccount
-//       const walletAddress = await biconomySmartAccount.getSmartAccountAddress();
-
-//       try {
-//         user = new User({
-//           phoneNumber: phoneNumber,
-//           walletAddress: walletAddress,
-//           password: hashedPassword,
-//           privateKey: pk
-//         });
-//         await user.save();
-//         smartAccount = userSmartAccount
-//         const token = jwt.sign({ phoneNumber: user.phoneNumber, walletAddress: user.walletAddress }, 'zero', { expiresIn: '1h' });
-//         res.send({ token, message: "Registered successfully!", walletAddress: user.walletAddress, phoneNumber: user.phoneNumber });
-//       } catch (error) {
-//         console.error("Error registering user:", error);
-//         if (error === 11000) { // Handling unique constraint violation
-//             res.status(409).send({ message: "Phone number already registered!" });
-//         } else {
-//             res.status(500).send({ message: "An error occurred while registering." });
-//         }
-//       }
-//     }
-// });
-
-
-// app.post('/registerBusiness', async (req: Request, res: Response) => {
-//   const { businessName, ownerName, location, phoneNumber, password } = req.body;
-
-//   if (!businessName || !ownerName || !location || !phoneNumber || !password) {
-//     return res.status(400).send({ message: "All fields are required!" });
-//   }
-
-//   // let business = await Business.findOne({ phoneNumber: phoneNumber });
-//   let business;
-
-//   // if (business) {
-//   //   return res.status(409).send({ message: "Business with this phone number is already registered!" });
-//   // }
-
-//   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-//   const businessSmartAccount = await createAccount();
-//   const { biconomySmartAccount, pk } = businessSmartAccount;
-//   const walletAddress = await biconomySmartAccount.getSmartAccountAddress();
-
-//   // Generate unique 5-digit code
-//   const uniqueCode = (Math.floor(Math.random() * 90000) + 10000).toString();
-
-//   try {
-//     business = new Business({
-//       businessName,
-//       ownerName,
-//       location,
-//       uniqueCode,
-//       phoneNumber,
-//       walletAddress,
-//       password: hashedPassword,
-//       privateKey: pk
-//     });
-
-//     await business.save();
-//     res.send({ 
-//       message: "Business registered successfully!", 
-//       walletAddress: walletAddress, 
-//       uniqueCode: uniqueCode
-//     });
-
-//   } catch (error) {
-//     console.error("Error registering business:", error);
-//     res.status(500).send({ message: "An error occurred while registering the business." });
-//   }
-// });
-
-
-// app.post('/sendToken', async (req, res) => {
-//   const { tokenAddress, recipientPhoneNumber, amount, senderAddress } = req.body;
-
-//   if (!tokenAddress || !recipientPhoneNumber || !amount || !senderAddress) {
-//       return res.status(400).send({ message: "Required parameters are missing!" });
-//   }
-
-//   // Find user with the provided phone number
-//   const user = await User.findOne({ phoneNumber: recipientPhoneNumber });
-//   if (!user) {
-//       return res.status(404).send({ message: "Recipient phone number not found!" });
-//   }
-
-//   try {
-//       await sendToken(tokenAddress, user.walletAddress, amount, senderAddress);
-//       res.send({ message: 'Token sent successfully!' });
-//   } catch (error) {
-//       console.error("Error in API endpoint:", error);
-//       res.status(500).send({ message: 'Failed to send token.', error: error });
-//   }
-// });
-
-// app.post('/pay', async (req: Request, res: Response) => {
-//   const { tokenAddress, senderAddress, businessUniqueCode, amount, confirm } = req.body;
-
-//   if (!tokenAddress || !businessUniqueCode || !amount || !senderAddress) {
-//       return res.status(400).send({ message: "Token address, business unique code, and amount are required!" });
-//   }
-
-//   // Find a business with the provided unique code
-//   const business = await Business.findOne({ uniqueCode: businessUniqueCode });
-//   if (!business) {
-//       return res.status(404).send({ message: "Business with the provided unique code not found!" });
-//   }
-// //55760
-//   // If the user has not confirmed the transaction
-//   if (!confirm) {
-//     return res.status(200).send({
-//         message: "Please confirm the payment to the business.",
-//         businessName: business.businessName
-//     });
-//   }
-
-//   try {
-//       await sendToken(tokenAddress, business.walletAddress, amount, senderAddress);
-//       res.send({ message: 'Token sent successfully to the business!' });
-//   } catch (error) {
-//       console.error("Error in API endpoint:", error);
-//       res.status(500).send({ message: 'Failed to send token.', error: error });
-//   }
-// });
-
-
-// app.get('/token-transfer-events', async (req, res) => {
-//   const { address } = req.query;
-
-//   const apikey = '6IEU61WYVQZJ9WT2U2UYZ3TVT2V7YG7QDF'
-
-//   if (!address) {
-//       return res.status(400).send('Address required query parameters.');
-//   }
-
-//   try {
-//       const events = await getAllTokenTransferEvents( address as string, apikey);
-//       res.json(events);
-//   } catch (error) {
-//       console.error('Error fetching token transfer events:', error);
-//       res.status(500).send('Internal server error.');
-//   }
-// });
-
-
-// const USDC_ADDRESS = '0xEE49EA567f79e280E4F1602eb8e6479d1Fb9c8C8'; 
-
-// const usdcAbi = [ // Simplified ABI for the purposes of this example
-//     {
-//         "constant": true,
-//         "inputs": [{"name": "_owner", "type": "address"}],
-//         "name": "balanceOf",
-//         "outputs": [{"name": "balance", "type": "uint256"}],
-//         "type": "function"
-//     },
-//     {
-//         "constant": true,
-//         "name": "decimals",
-//         "outputs": [{"name": "", "type": "uint8"}],
-//         "type": "function"
-//     }
-// ];
-
-// app.get('/usdc-balance/:address', async (req, res) => {
-//     try {
-//         const address = req.params.address;
-//         const usdcContract = new ethers.Contract(USDC_ADDRESS, usdcAbi, provider);
-
-//         const balanceRaw = await usdcContract.balanceOf(address);
-//         const decimals = await usdcContract.decimals();
-//         const balanceInUSDC = balanceRaw.div(ethers.BigNumber.from(10).pow(decimals)).toNumber();
-
-//         const conversionRate = await fetchUSDCToKESPrice();
-//         const balanceInKES = balanceInUSDC * conversionRate;
-//        console.log(balanceInKES)
-//         res.json({
-//             balanceInUSDC: balanceInUSDC,
-//             balanceInKES: balanceInKES.toFixed(2),
-//             rate: conversionRate
-//         });
-
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).send('Failed to fetch balance.');
-//     }
-// });
-
-
-
-
-// connect().then(() => {
-//   app.listen(PORT, () => {
-//     console.log(`Server running on http://localhost:${PORT}`);
-//   });
-//   console.log('Connected to MongoDB');
-// });
-
-
-//     ///////CONTROLLERS///////
-
-
-
-
-//   async function createAccount() {
- 
-//   const newWallet = Wallet.createRandom();
-//   const pk = newWallet.privateKey
-//   const wallet = new Wallet(pk, provider);
-//   let smartAccount: BiconomySmartAccount;
-//   //smart account config
-//   const biconomySmartAccountConfig: BiconomySmartAccountConfig = {
-//     signer: wallet,
-//     chainId: ChainId.POLYGON_MUMBAI,
-//     bundler: bundler,
-//     paymaster: paymaster
-//   }
-
-//   let biconomySmartAccount = new BiconomySmartAccount(biconomySmartAccountConfig)
-//   biconomySmartAccount =  await biconomySmartAccount.init()
-  
-//   console.log("owner: ", biconomySmartAccount.owner)
-//   console.log("address: ", await biconomySmartAccount.getSmartAccountAddress())
-//   return {biconomySmartAccount, pk};
-//   }
-
-// //368785456798
-// //2456789456
-//   async function instanceAccount(prikey: string) {
-//     const wallet = new Wallet(prikey, provider);
-
-//     //smart account config
-//     const biconomySmartAccountConfig: BiconomySmartAccountConfig = {
-//       signer: wallet,
-//       chainId: ChainId.POLYGON_MUMBAI,
-//       bundler: bundler,
-//       paymaster: paymaster
-//     }
-  
-//     let biconomySmartAccount = new BiconomySmartAccount(biconomySmartAccountConfig)
-//     biconomySmartAccount =  await biconomySmartAccount.init()
-//     console.log("owner: ", biconomySmartAccount.owner)
-//     console.log("address: ", await biconomySmartAccount.getSmartAccountAddress())
-//     return biconomySmartAccount;
-//   }
-
-
-
-// async function sendToken(tokenAddress: string, recipientAddress: string, amount: number, senderAddress: string) {
-//   try {
-//     let user = await User.findOne({ walletAddress: senderAddress });
-    
-//     const biconomySmartAccount = await instanceAccount(user?.privateKey as string)
-//     // const biconomySmartAccount = smartAccount
-
-
-
-//     const tokenContract = new ethers.Contract(tokenAddress, ERC20ABI, provider);
-    
-//     let decimals = 18;
-//     try {
-//       decimals = await tokenContract.decimals();
-//     } catch (error) {
-//       throw new Error('invalid token address supplied');
-//     }
-
-//     const amountGwei = ethers.utils.parseUnits(amount.toString(), decimals);
-//     const data = (await tokenContract.populateTransaction.transfer(recipientAddress, amountGwei)).data;
-//     const transaction = {
-//       to: tokenAddress,
-//       data,
-//     };
-
-//     // Build partial userOp
-//     let partialUserOp = await biconomySmartAccount.buildUserOp([transaction]);
-
-//     const biconomyPaymaster =
-//     biconomySmartAccount.paymaster as IHybridPaymaster<SponsorUserOperationDto>;
-
-// let paymasterServiceData: SponsorUserOperationDto = {
-//     mode: PaymasterMode.SPONSORED,
-// };
-// console.log("getting paymaster and data");
-// try {
-//     const paymasterAndDataResponse =
-//         await biconomyPaymaster.getPaymasterAndData(
-//             partialUserOp,
-//             paymasterServiceData
-//         );
-//     partialUserOp.paymasterAndData =
-//         paymasterAndDataResponse.paymasterAndData;
-// } catch (e) {
-//     console.log("error received ", e);
-// }
-// console.log("sending userop");
-// try {
-//     const userOpResponse = await biconomySmartAccount.sendUserOp(partialUserOp);
-//     const transactionDetails = await userOpResponse.wait();
-//     console.log(
-//         `transactionDetails: https://mumbai.polygonscan.com/tx/${transactionDetails.receipt.transactionHash}`
-//     );
- 
-// } catch (e) {
-//     console.log("error received ", e);
-// }
-//   } catch (error) {
-//     console.error("Error in sendToken:", error);
-//   }
-// }
-
-
-// interface TokenTransferEvent {
-//     blockNumber: string;
-//     timeStamp: string;
-//     hash: string;
-//     nonce: string;
-//     blockHash: string;
-//     from: string;
-//     contractAddress: string;
-//     to: string;
-//     value: string;
-//     tokenName: string;
-//     tokenSymbol: string;
-//     tokenDecimal: string;
-//     transactionIndex: string;
-//     gas: string;
-//     gasPrice: string;
-//     gasUsed: string;
-//     cumulativeGasUsed: string;
-//     input: string;
-//     confirmations: string;
-// }
-
-// async function getAllTokenTransferEvents(
-//     walletAddress: string,
-//     apiKey: string,
-//     page: number = 1,
-//     offset: number = 5,
-//     sort: 'asc' | 'desc' = 'asc'
-// ): Promise<TokenTransferEvent[]> {
-//     const baseURL = 'https://api-testnet.polygonscan.com/api';
-//     const url = `${baseURL}?module=account&action=tokentx&address=${walletAddress}&page=${page}&offset=${offset}&sort=${sort}&apikey=${apiKey}`;
-
-//     try {
-//       const response = await fetch(url);
-//       if (!response.ok) {
-//           throw new Error('Failed to fetch data from PolygonScan');
-//       }
-      
-//       const data = await response.json() as { status: string; message: string; result: TokenTransferEvent[] };
-//       if (data.status !== '1') {
-//           throw new Error(data.message);
-//       }
-      
-//       return data.result;
-      
-//     } catch (error) {
-//         console.error('Error fetching token transfer events:', error);
-//         return [];
-//     }
-// }
-
-
-// async function getConversionRate() {
-//   try {
-//       const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=usd&vs_currencies=kes`);
-//       const data = await response.json();
-//       console.log(`in kes: ${data.usd.kes}`)
-//       return data.usd.kes;
-//   } catch (error) {
-//       console.error("Failed to fetch conversion rate from CoinGecko:", error);
-//       throw error;
-//   }
-// }
-
-// async function getUSDCToKESRate() {
-//   try {
-//     // 1. Get USDC to USD rate
-//     const responseUSDC = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=usd-coin&vs_currencies=usd');
-//     const dataUSDC = await responseUSDC.json();
-//     console.log(dataUSDC)
-//     const usdcToUsdRate = dataUSDC['usd-coin'].usd;
-
-//     // 2. Get USD to KES rate
-//     const responseUSD = await fetch('https://api.coingecko.com/api/v3/exchange_rates');
-//     console.log(responseUSD)
-//     const dataUSD = await responseUSD.json();
-//     const usdToKesRate = dataUSD.rates.kes.value;
-
-//     // 3. Calculate USDC to KES rate
-//     const usdcToKesRate = usdcToUsdRate * usdToKesRate;
-//  console.log(usdToKesRate)
-//     return usdcToKesRate;
-
-//   } catch (error) {
-//     console.error('Failed to fetch rates:', error);
-//     return null;
-//   }
-// }
-
-
-// async function main(){
-//   // console.log(await client.prices({symbol: 'KESUSDC'}))
-//   const price = await fetchUSDCToKESPrice();
-
-// console.log(price)  
-// }
-// //  main()
-
-// async function fetchUSDCToKESPrice() {
-//   // Define the API endpoint
-//   const apiEndpoint = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol=USDC&convert=KES';
-
-//   // Set the API key header
-//   const headers = {
-//     'X-CMC_PRO_API_KEY': '4d1123b4-e75c-41de-b016-0f27f577433b'
+//   // authSigner provides information needed to authenticate with ODIS
+//   const authSigner: AuthSigner = {
+//     authenticationMethod: OdisUtils.Query.AuthenticationMethod.WALLET_KEY,
+//     contractKit: kit,
 //   };
+//   // serviceContext provides the ODIS endpoint and public key
+//   const serviceContext = OdisUtils.Query.getServiceContext(OdisContextName.MAINNET);
 
-//   // Make a GET request to the API endpoint
-//   const response = await fetch(apiEndpoint, { headers });
+//   // check existing quota on issuer account
+//   const { remainingQuota } = await OdisUtils.Quota.getPnpQuotaStatus(
+//     issuerAddress,
+//     authSigner,
+//     serviceContext
+//   );
 
-//   // Check the response status code
-//   if (response.status !== 200) {
-//     throw new Error(`Failed to fetch USDC to KES price: ${response.status}`);
+//   // if needed, approve and then send payment to OdisPayments to get quota for ODIS
+//   if (remainingQuota < 1) {
+//     const stableTokenContract = await kit.contracts.getStableToken();
+//     const odisPaymentsContract = await kit.contracts.getOdisPayments();
+//     const ONE_CENT_CUSD_WEI = "10000000000000000";
+//     await stableTokenContract
+//       .increaseAllowance(odisPaymentsContract.address, ONE_CENT_CUSD_WEI)
+//       .sendAndWaitForReceipt();
+//     const odisPayment = await odisPaymentsContract
+//       .payInCUSD(issuerAddress, ONE_CENT_CUSD_WEI)
+//       .sendAndWaitForReceipt();
+//     console.log("quota done")
 //   }
 
-//   // Parse the JSON response
-//   const data = await response.json();
+//   // get obfuscated identifier from plaintext identifier by querying ODIS
+//   const { obfuscatedIdentifier } =
+//     await OdisUtils.Identifier.getObfuscatedIdentifier(
+//       userPlaintextIdentifier,
+//       OdisUtils.Identifier.IdentifierPrefix.TILL,
+//       issuerAddress,
+//       authSigner,
+//       serviceContext
+//     );
 
-//   // Return the USDC to KES price
-//   return data.data['USDC'].quote['KES'].price;
+//   console.log(` ob Identifier - ${obfuscatedIdentifier}`)
+//   const federatedAttestationsContract =
+//     await kit.contracts.getFederatedAttestations();
+
+//   // First, check if an attestation already exists
+//   const attestations = await federatedAttestationsContract.lookupAttestations(
+//     obfuscatedIdentifier,
+//     [issuerAddress]
+//   );
+
+//   if (attestations && attestations.accounts && attestations.accounts.length > 0) {
+//     console.log("Attestation already exists. Skipping registration.");
+//     console.log(obfuscatedIdentifier)
+//     console.log("attest - ", attestations);
+//     console.log("aacc - ", attestations.accounts);
+//   } else {
+//     // If no attestation exists, proceed to register
+//     try {
+//       await federatedAttestationsContract
+//         .registerAttestationAsIssuer(
+//           obfuscatedIdentifier,
+//           userAccountAddress,
+//           attestationVerifiedTime
+//         )
+//         .send();
+//       console.log("Attestation registered successfully.");
+
+//       console.log("attest - ", attestations);
+//       console.log("aacc - ", attestations.accounts);
+//     } catch (error) {
+//       console.error("Error registering attestation:", error);
+//     }
+//   }
+
 // }
 
-// // main()
+// main()
 
 
-
+import express from 'express';
 import { newKit } from "@celo/contractkit";
 import { OdisUtils } from "@celo/identity";
 import { AuthSigner, OdisContextName } from "@celo/identity/lib/odis/query";
- async function main(){
-// the issuer is the account that is registering the attestation
-let ISSUER_PRIVATE_KEY = "4631b73bedaad273f06dba53872ab67cc2bfcd639fccc21508b589c74706eee4";
 
-// create alfajores contractKit instance with the issuer private key
-const kit = await newKit("https://alfajores-forno.celo-testnet.org");
-kit.addAccount(ISSUER_PRIVATE_KEY);
-const issuerAddress =
-    kit.web3.eth.accounts.privateKeyToAccount(ISSUER_PRIVATE_KEY).address;
+// Initialize Express
+const app = express();
+app.use(express.json());
+
+const PORT = process.env.PORT || 8000;
+
+// Celo kit and related setup
+const kit = newKit("https://forno.celo.org");
+const ISSUER_PRIVATE_KEY = "df22c9fc78bb9ddc80605f85ef479330b3f2907a9386835e725d105f07945ecf"; 
+  kit.addAccount(ISSUER_PRIVATE_KEY);
+const issuerAddress = kit.web3.eth.accounts.privateKeyToAccount(ISSUER_PRIVATE_KEY).address;
 kit.defaultAccount = issuerAddress;
 
-// information provided by user, issuer should confirm they do own the identifier
-const userPlaintextIdentifier = "+254745678910";
-const userAccountAddress = "0xe1F4615Afec6801493FB889eDe3A70812c842d05";
-
-// time at which issuer verified the user owns their identifier
-const attestationVerifiedTime = Date.now();
-
-
-// authSigner provides information needed to authenticate with ODIS
 const authSigner: AuthSigner = {
   authenticationMethod: OdisUtils.Query.AuthenticationMethod.WALLET_KEY,
   contractKit: kit,
 };
-// serviceContext provides the ODIS endpoint and public key
-// const serviceContext = OdisUtils.Query.getServiceContext(
-//   OdisContextName.ALFAJORES
-// );
-const serviceContext = OdisUtils.Query.getServiceContext(OdisContextName.ALFAJORES);
 
-// check existing quota on issuer account
-const { remainingQuota } = await OdisUtils.Quota.getPnpQuotaStatus(
-  issuerAddress,
-  authSigner,
-  serviceContext
-);
+const serviceContext = OdisUtils.Query.getServiceContext(OdisContextName.MAINNET);
 
-// if needed, approve and then send payment to OdisPayments to get quota for ODIS
-if (remainingQuota < 1) {
-  const stableTokenContract = await kit.contracts.getStableToken();
-  const odisPaymentsContract = await kit.contracts.getOdisPayments();
-  const ONE_CENT_CUSD_WEI = "10000000000000000";
-  await stableTokenContract
+
+
+// Function to generate a unique 5-digit till number
+const generateTillNumber = (): string => {
+  return Math.floor(10000 + Math.random() * 90000).toString();
+};
+
+app.post('/registerMerchant', async (req, res) => {
+  const { walletAddress }: any = req.body;
+  if (!walletAddress) {
+    return res.status(400).send({ error: 'Wallet address is required' });
+  }
+
+  const tillNumber = generateTillNumber();
+
+  // Generate obfuscated identifier for the till number
+  const { obfuscatedIdentifier } = await OdisUtils.Identifier.getObfuscatedIdentifier(
+    tillNumber,
+    OdisUtils.Identifier.IdentifierPrefix.TILL,
+    issuerAddress,
+    authSigner,
+    serviceContext
+  );
+
+  // Get the FederatedAttestations contract
+  const federatedAttestationsContract = await kit.contracts.getFederatedAttestations();
+
+  // Time of attestation verification
+  const attestationVerifiedTime = Date.now();
+
+  try {
+    // Register the attestation
+    await federatedAttestationsContract
+      .registerAttestationAsIssuer(
+        obfuscatedIdentifier,
+        walletAddress,
+        attestationVerifiedTime
+      )
+      .send({ from: issuerAddress });
+
+    // Here, store the tillNumber and walletAddress mapping in a database
+    // Assuming the mapping is stored successfully
+
+    return res.status(200).send({ tillNumber, walletAddress, obfuscatedIdentifier });
+  } catch (error) {
+    console.error("Error registering attestation:", error);
+    return res.status(500).send({ error: 'Failed to register attestation' });
+  }
+});
+
+
+
+app.get('/getMerchantAddress/:tillNumber', async (req, res) => {
+  const { tillNumber } = req.params;
+
+  // Here, you would look up the wallet address using the till number from your database
+  // Let's assume you've successfully retrieved the wallet address
+  const userAccountAddress = '0x...'; // Retrieved wallet address
+//   // check existing quota on issuer account
+  const { remainingQuota } = await OdisUtils.Quota.getPnpQuotaStatus(
+    issuerAddress,
+    authSigner,
+    serviceContext
+  );
+
+  // if needed, approve and then send payment to OdisPayments to get quota for ODIS
+  if (remainingQuota < 1) {
+    const stableTokenContract = await kit.contracts.getStableToken();
+    const odisPaymentsContract = await kit.contracts.getOdisPayments();
+    const ONE_CENT_CUSD_WEI = "10000000000000000";
+    await stableTokenContract
       .increaseAllowance(odisPaymentsContract.address, ONE_CENT_CUSD_WEI)
       .sendAndWaitForReceipt();
-  const odisPayment = await odisPaymentsContract
+    const odisPayment = await odisPaymentsContract
       .payInCUSD(issuerAddress, ONE_CENT_CUSD_WEI)
       .sendAndWaitForReceipt();
-}
-
-
-// get obfuscated identifier from plaintext identifier by querying ODIS
-const { obfuscatedIdentifier } =
-    await OdisUtils.Identifier.getObfuscatedIdentifier(
-        userPlaintextIdentifier,
-        OdisUtils.Identifier.IdentifierPrefix.PHONE_NUMBER,
-        issuerAddress,
-        authSigner,
-        serviceContext
-    );
-
-    const federatedAttestationsContract =
-    await kit.contracts.getFederatedAttestations();
-
-// upload identifier <-> address mapping to onchain registry
-await federatedAttestationsContract
-    .registerAttestationAsIssuer(
-        obfuscatedIdentifier,
-        userAccountAddress,
-        attestationVerifiedTime
-    )
-    .send();
-
-    const attestations = await federatedAttestationsContract.lookupAttestations(
-      obfuscatedIdentifier,
-      [issuerAddress]
+    console.log("quota done")
+  }
+  // Get obfuscated identifier
+  const { obfuscatedIdentifier } = await OdisUtils.Identifier.getObfuscatedIdentifier(
+    tillNumber,
+    OdisUtils.Identifier.IdentifierPrefix.TILL,
+    issuerAddress,
+    authSigner,
+    serviceContext
   );
-  
-  console.log(attestations.accounts);
-    }
 
-    main()
+  // Lookup attestations
+  const federatedAttestationsContract = await kit.contracts.getFederatedAttestations();
+  const attestations = await federatedAttestationsContract.lookupAttestations(
+    obfuscatedIdentifier,
+    [issuerAddress]
+  );
+
+  if (attestations.accounts && attestations.accounts.length > 0) {
+    return res.status(200).send({ merchantAddress: attestations.accounts[0] });
+  } else {
+    return res.status(404).send({ error: 'No merchant found with the given till number' });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
