@@ -106,17 +106,28 @@ import express from 'express';
 import { newKit } from "@celo/contractkit";
 import { OdisUtils } from "@celo/identity";
 import { AuthSigner, OdisContextName } from "@celo/identity/lib/odis/query";
+import mongoose from 'mongoose';
+import { config } from "dotenv"
+import Merchant from './models';
+config()
+
 
 // Initialize Express
 const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 8000;
+const MONGO_URI = process.env.MONGO_URI as string;
+
+
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('Failed to connect to MongoDB', err));
 
 // Celo kit and related setup
 const kit = newKit("https://forno.celo.org");
-const ISSUER_PRIVATE_KEY = "df22c9fc78bb9ddc80605f85ef479330b3f2907a9386835e725d105f07945ecf"; 
-  kit.addAccount(ISSUER_PRIVATE_KEY);
+const ISSUER_PRIVATE_KEY = process.env.ISSUER_PRIVATE_KEY as string;
+kit.addAccount(ISSUER_PRIVATE_KEY);
 const issuerAddress = kit.web3.eth.accounts.privateKeyToAccount(ISSUER_PRIVATE_KEY).address;
 kit.defaultAccount = issuerAddress;
 
@@ -127,21 +138,46 @@ const authSigner: AuthSigner = {
 
 const serviceContext = OdisUtils.Query.getServiceContext(OdisContextName.MAINNET);
 
-
-
 // Function to generate a unique 5-digit till number
 const generateTillNumber = (): string => {
   return Math.floor(10000 + Math.random() * 90000).toString();
 };
 
+
+
 app.post('/registerMerchant', async (req, res) => {
-  const { walletAddress }: any = req.body;
+  const { walletAddress, businessName } = req.body;  // Added businessName
+
   if (!walletAddress) {
     return res.status(400).send({ error: 'Wallet address is required' });
   }
 
+  if (!businessName) {
+    return res.status(400).send({ error: 'Business name is required' });  // Validation for business name
+  }
+
   const tillNumber = generateTillNumber();
 
+  //   // check existing quota on issuer account
+  const { remainingQuota } = await OdisUtils.Quota.getPnpQuotaStatus(
+    issuerAddress,
+    authSigner,
+    serviceContext
+  );
+
+  // if needed, approve and then send payment to OdisPayments to get quota for ODIS
+  if (remainingQuota < 1) {
+    const stableTokenContract = await kit.contracts.getStableToken();
+    const odisPaymentsContract = await kit.contracts.getOdisPayments();
+    const ONE_CENT_CUSD_WEI = "10000000000000000";
+    await stableTokenContract
+      .increaseAllowance(odisPaymentsContract.address, ONE_CENT_CUSD_WEI)
+      .sendAndWaitForReceipt();
+    const odisPayment = await odisPaymentsContract
+      .payInCUSD(issuerAddress, ONE_CENT_CUSD_WEI)
+      .sendAndWaitForReceipt();
+    console.log("quota done")
+  }
   // Generate obfuscated identifier for the till number
   const { obfuscatedIdentifier } = await OdisUtils.Identifier.getObfuscatedIdentifier(
     tillNumber,
@@ -167,10 +203,16 @@ app.post('/registerMerchant', async (req, res) => {
       )
       .send({ from: issuerAddress });
 
-    // Here, store the tillNumber and walletAddress mapping in a database
-    // Assuming the mapping is stored successfully
+    // Here, store the tillNumber, walletAddress, and businessName mapping in a database
+    const merchant = new Merchant({
+      walletAddress: walletAddress,
+      businessName: businessName,
+      tillNumber: tillNumber,
+      obfuscatedIdentifier: obfuscatedIdentifier,
+    });
+    await merchant.save();
 
-    return res.status(200).send({ tillNumber, walletAddress, obfuscatedIdentifier });
+    return res.status(200).send({ tillNumber, walletAddress, businessName, obfuscatedIdentifier });
   } catch (error) {
     console.error("Error registering attestation:", error);
     return res.status(500).send({ error: 'Failed to register attestation' });
@@ -182,49 +224,22 @@ app.post('/registerMerchant', async (req, res) => {
 app.get('/getMerchantAddress/:tillNumber', async (req, res) => {
   const { tillNumber } = req.params;
 
-  // Here, you would look up the wallet address using the till number from your database
-  // Let's assume you've successfully retrieved the wallet address
-  const userAccountAddress = '0x...'; // Retrieved wallet address
-//   // check existing quota on issuer account
-  const { remainingQuota } = await OdisUtils.Quota.getPnpQuotaStatus(
-    issuerAddress,
-    authSigner,
-    serviceContext
-  );
+  try {
+    // Query the database for the merchant using the tillNumber
+    const merchant = await Merchant.findOne({ tillNumber });
 
-  // if needed, approve and then send payment to OdisPayments to get quota for ODIS
-  if (remainingQuota < 1) {
-    const stableTokenContract = await kit.contracts.getStableToken();
-    const odisPaymentsContract = await kit.contracts.getOdisPayments();
-    const ONE_CENT_CUSD_WEI = "10000000000000000";
-    await stableTokenContract
-      .increaseAllowance(odisPaymentsContract.address, ONE_CENT_CUSD_WEI)
-      .sendAndWaitForReceipt();
-    const odisPayment = await odisPaymentsContract
-      .payInCUSD(issuerAddress, ONE_CENT_CUSD_WEI)
-      .sendAndWaitForReceipt();
-    console.log("quota done")
-  }
-  // Get obfuscated identifier
-  const { obfuscatedIdentifier } = await OdisUtils.Identifier.getObfuscatedIdentifier(
-    tillNumber,
-    OdisUtils.Identifier.IdentifierPrefix.TILL,
-    issuerAddress,
-    authSigner,
-    serviceContext
-  );
+    if (!merchant) {
+      return res.status(404).send({ error: 'No merchant found with the given till number' });
+    }
 
-  // Lookup attestations
-  const federatedAttestationsContract = await kit.contracts.getFederatedAttestations();
-  const attestations = await federatedAttestationsContract.lookupAttestations(
-    obfuscatedIdentifier,
-    [issuerAddress]
-  );
+    // Extract walletAddress and businessName from the merchant document
+    const { walletAddress, businessName } = merchant;
 
-  if (attestations.accounts && attestations.accounts.length > 0) {
-    return res.status(200).send({ merchantAddress: attestations.accounts[0] });
-  } else {
-    return res.status(404).send({ error: 'No merchant found with the given till number' });
+    // Return walletAddress and businessName
+    return res.status(200).send({ walletAddress, businessName });
+  } catch (error) {
+    console.error("Error retrieving merchant data:", error);
+    return res.status(500).send({ error: 'Failed to retrieve merchant data' });
   }
 });
 
