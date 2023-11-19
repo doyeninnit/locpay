@@ -107,13 +107,17 @@ import { newKit } from "@celo/contractkit";
 import { OdisUtils } from "@celo/identity";
 import { AuthSigner, OdisContextName } from "@celo/identity/lib/odis/query";
 import mongoose from 'mongoose';
-import { config } from "dotenv"
+import { config } from "dotenv";
+// import { cors } from 'cors';
+const cors = require('cors');
+
 import Merchant from './models';
 config()
 
 
 // Initialize Express
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 8000;
@@ -221,12 +225,35 @@ app.post('/registerMerchant', async (req, res) => {
 
 
 
-app.get('/getMerchantAddress/:tillNumber', async (req, res) => {
-  const { tillNumber } = req.params;
+// app.get('/getMerchantAddress/:tillNumber', async (req, res) => {
+//   const { tillNumber } = req.params;
+
+//   try {
+//     // Query the database for the merchant using the tillNumber
+//     const merchant = await Merchant.findOne({ tillNumber });
+
+//     if (!merchant) {
+//       return res.status(404).send({ error: 'No merchant found with the given till number' });
+//     }
+
+//     // Extract walletAddress and businessName from the merchant document
+//     const { walletAddress, businessName } = merchant;
+
+//     // Return walletAddress and businessName
+//     return res.status(200).send({ walletAddress, businessName });
+//   } catch (error) {
+//     console.error("Error retrieving merchant data:", error);
+//     return res.status(500).send({ error: 'Failed to retrieve merchant data' });
+//   }
+// });
+
+
+app.post('/pay', async (req, res) => {
+  const { tillNumber, confirm } = req.body; // Extracting tillNumber as businessUniqueCode and confirm flag
 
   try {
     // Query the database for the merchant using the tillNumber
-    const merchant = await Merchant.findOne({ tillNumber });
+    const merchant = await Merchant.findOne({ tillNumber: tillNumber });
 
     if (!merchant) {
       return res.status(404).send({ error: 'No merchant found with the given till number' });
@@ -235,13 +262,22 @@ app.get('/getMerchantAddress/:tillNumber', async (req, res) => {
     // Extract walletAddress and businessName from the merchant document
     const { walletAddress, businessName } = merchant;
 
-    // Return walletAddress and businessName
-    return res.status(200).send({ walletAddress, businessName });
+    if (!confirm) {
+      // If not confirming, just return the business name for the user to confirm
+      return res.status(200).send({ businessName });
+    } else {
+      // If confirming, return the wallet address of the merchant
+      // This is where you would also handle the actual payment transaction
+      // (the payment processing logic should be implemented here)
+
+      return res.status(200).send({ walletAddress });
+    }
   } catch (error) {
-    console.error("Error retrieving merchant data:", error);
-    return res.status(500).send({ error: 'Failed to retrieve merchant data' });
+    console.error("Error in payment process:", error);
+    return res.status(500).send({ error: 'Failed to process payment' });
   }
 });
+
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

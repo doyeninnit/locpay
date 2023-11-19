@@ -2,7 +2,12 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-
+import { ethers } from 'ethers';
+declare global {
+    interface Window {
+        ethereum: any;
+    }
+}
 const Spinner = () => (
     <div className="fixed top-0 left-0 w-full h-full flex justify-center items-center bg-opacity-50 bg-black z-50">
         <div className="border-t-4 border-blue-500 border-solid rounded-full w-10 h-10 animate-spin"></div>
@@ -33,131 +38,116 @@ const PayMerchants = () => {
     const [tillNumber, setTillNumber] = useState('');
     const [amount, setAmount] = useState('');
     const [businessName, setBusinessName] = useState('');
+    const [merchantWalletAddress, setMerchantWalletAddress] = useState('');
     const [isConfirming, setIsConfirming] = useState(false);
     const [loading, setLoading] = useState(false);
     const [transactionSuccess, setTransactionSuccess] = useState(false);
+    const { user } = useAuth(); // Assuming useAuth is correctly implemented
 
-    // Assuming you've imported useAuth from your auth context
-    const { user } = useAuth();
+ // Initiate payment to get business name
+ const handlePaymentInitiation = async (e: { preventDefault: () => void; }) => {
+    e.preventDefault();
+    // if (!user) {
+    //     console.error("User is not authenticated.");
+    //     return;
+    // }
 
-    const handlePaymentInitiation = async (e: React.FormEvent) => {
-        e.preventDefault();
+    setLoading(true);
+    try {
+        const response = await fetch('http://localhost:8000/pay', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // 'Authorization': `Bearer ${localStorage.getItem('userToken')}`
+            },
+            body: JSON.stringify({
+                tillNumber: tillNumber,
+                confirm: false
+            }),
+        });
 
+        const data = await response.json();
+        setLoading(false);
 
-        if (!user) {
-            // Handle unauthenticated user scenario
-            console.error("User is not authenticated.");
-            return;
+        if (response.ok) {
+            setBusinessName(data.businessName);
+            setIsConfirming(true);
+        } else {
+            console.error("Error initiating payment:", data.message);
         }
-        const token = localStorage.getItem('userToken');
-        if (!token) {
-            console.error("No token found.");
-            return;
-        }
-        const tokenAddress = "0xEE49EA567f79e280E4F1602eb8e6479d1Fb9c8C8"; // Set this based on your logic
+    } catch (error) {
+        setLoading(false);
+        console.error("Error:", error);
+    }
+};
 
+// Confirm payment to get merchant wallet address
+const handlePaymentConfirmation = async () => {
+    setLoading(true);
+    try {
+        const response = await fetch('http://localhost:8000/pay', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // 'Authorization': `Bearer ${localStorage.getItem('userToken')}`
+            },
+            body: JSON.stringify({
+                tillNumber: tillNumber,
+                confirm: true
+            }),
+        });
+
+        const data = await response.json();
+        setLoading(false);
+
+        if (response.ok) {
+            setMerchantWalletAddress(data.walletAddress);
+            initiateMetaMaskTransaction(data.walletAddress);
+        } else {
+            console.error("Error confirming payment:", data.message);
+        }
+    } catch (error) {
+        setLoading(false);
+        console.error("Error:", error);
+    }
+};
+
+const initiateMetaMaskTransaction = async (merchantWalletAddress: any) => {
+    if (window.ethereum && window.ethereum.isMiniPay) {
         try {
+            // await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const transaction = {
+                to: merchantWalletAddress,
+                // Convert the amount to Wei. The 'amount' state variable should be in Ether.
+                // value: ethers.utils.parseEther(amount)
+                value: ethers.utils.parseUnits(amount, 18) // Assuming cUSD has 18 decimals
 
-            const response = await fetch('https://afpaybackend-pbj0jv1ei-nashons.vercel.app/pay', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    tokenAddress,
-                    senderAddress: user.walletAddress,
-                    businessUniqueCode: tillNumber, // Renamed tillNumber to match backend
-                    amount,
-                    senderPhoneNumber: user.phoneNumber,
-                    confirm: isConfirming
-                }),
-            });
+            };
 
-            const data = await response.json();
-
-            if (response.ok) {
-                if (!isConfirming) {
-                    setBusinessName(data.businessName);
-                    setIsConfirming(true);
-                } else {
-                    setTransactionSuccess(true);
-                    setTillNumber('');
-                    setAmount('');
-                    setIsConfirming(false);
-                    setTimeout(() => {
-                        setTransactionSuccess(false);
-                    }, 3000);
-                }
-            } else {
-                console.error("Error initiating payment:", data.message);
-            }
+            const tx = await signer.sendTransaction(transaction);
+            console.log('Transaction successful:', tx);
+            setTransactionSuccess(true);
+            setTimeout(() => setTransactionSuccess(false), 3000);
         } catch (error) {
-            console.error("Error:", error);
+            console.error('Error with MetaMask transaction:', error);
         }
-    };
-
-    const handlePaymentConfirmation = async () => {
-        if (!user) {
-            // Handle unauthenticated user scenario
-            console.error("User is not authenticated.");
-            return;
-        }
-        const token = localStorage.getItem('userToken');
-        if (!token) {
-            console.error("No token found.");
-            return;
-        }
-        const tokenAddress = "0xEE49EA567f79e280E4F1602eb8e6479d1Fb9c8C8"; // Set this based on your logic
-
-        try {
-            setLoading(true); // set loading to true before the transaction
-
-            const response = await fetch('https://afpaybackend-pbj0jv1ei-nashons.vercel.app/pay', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    tokenAddress,
-                    senderAddress: user.walletAddress,
-                    businessUniqueCode: tillNumber, // Renamed tillNumber to match backend
-                    amount,
-                    senderPhoneNumber: user.phoneNumber,
-                    confirm: true
-                }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setLoading(false); // set loading to false after the transaction
-
-                console.log("Transaction successful:", data);
-                setTillNumber('');
-                setAmount('');
-                setIsConfirming(false);
-                setTransactionSuccess(true);
-
-                // Close the success popup after 3 seconds
-                setTimeout(() => {
-                    setTransactionSuccess(false);
-                }, 3000);
-
-            } else {
-                console.error("Error confirming payment:", data.message);
-            }
-        } catch (error) {
-            console.error("Error:", error);
-        }
-    };
+    } else {
+        console.error('MetaMask not installed');
+    }
+};
 
     return (
         <div className="min-h-screen bg-gradient-to-r from-black to-purple-900 p-4">
+            {/* {loading && <Spinner />} */}
+            {/* {isConfirming && <ConfirmModal businessName={businessName} onConfirm={handlePaymentConfirmation} />} */}
+            {/* {transactionSuccess && <TransactionSuccessModal />} */}
+
             {loading && <Spinner />}
             {/* {isConfirming && <ConfirmModal businessName={businessName} onConfirm={handlePaymentConfirmation} />} */}
             {transactionSuccess && <TransactionSuccessModal />}
+            {/* ...rest of the component... */}
 
             <div className="container mx-auto text-white">
                 <h1 className="text-2xl font-bold mb-4">Pay Merchants</h1>
