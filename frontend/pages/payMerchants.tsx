@@ -54,7 +54,7 @@ const PayMerchants = () => {
 
     setLoading(true);
     try {
-        const response = await fetch('http://localhost:8000/pay', {
+        const response = await fetch('https://locpay.vercel.app/pay', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -85,7 +85,7 @@ const PayMerchants = () => {
 const handlePaymentConfirmation = async () => {
     setLoading(true);
     try {
-        const response = await fetch('http://localhost:8000/pay', {
+        const response = await fetch('https://locpay.vercel.app/pay', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -112,32 +112,60 @@ const handlePaymentConfirmation = async () => {
     }
 };
 
+// const initiateMetaMaskTransaction = async (merchantWalletAddress: any) => {
+//     if (window.ethereum && window.ethereum.isMiniPay) {
+//         try {
+//             // await window.ethereum.request({ method: 'eth_requestAccounts' });
+//             const provider = new ethers.providers.Web3Provider(window.ethereum);
+//             const signer = provider.getSigner();
+//             const transaction = {
+//                 to: merchantWalletAddress,
+//                 // Convert the amount to Wei. The 'amount' state variable should be in Ether.
+//                 // value: ethers.utils.parseEther(amount)
+//                 value: ethers.utils.parseUnits(amount, 18) // Assuming cUSD has 18 decimals
+
+//             };
+
+//             const tx = await signer.sendTransaction(transaction);
+//             console.log('Transaction successful:', tx);
+//             setTransactionSuccess(true);
+//             setTimeout(() => setTransactionSuccess(false), 3000);
+//         } catch (error) {
+//             console.error('Error with MetaMask transaction:', error);
+//         }
+//     } else {
+//         console.error('MetaMask not installed');
+//     }
+// };
+
+const cUSDContractABI = [
+    // transfer
+    "function transfer(address recipient, uint256 amount) returns (bool)"
+];
+const cUSDContractAddress = "0x765DE816845861e75A25fCA122bb6898B8B1282a"
+
 const initiateMetaMaskTransaction = async (merchantWalletAddress: any) => {
     if (window.ethereum && window.ethereum.isMiniPay) {
-        try {
-            // await window.ethereum.request({ method: 'eth_requestAccounts' });
+    try {
             const provider = new ethers.providers.Web3Provider(window.ethereum);
             const signer = provider.getSigner();
-            const transaction = {
-                to: merchantWalletAddress,
-                // Convert the amount to Wei. The 'amount' state variable should be in Ether.
-                // value: ethers.utils.parseEther(amount)
-                value: ethers.utils.parseUnits(amount, 18) // Assuming cUSD has 18 decimals
+            const cUSDContract = new ethers.Contract(cUSDContractAddress, cUSDContractABI, signer);
 
-            };
+            // Convert the amount to the smallest unit of cUSD. 
+            // This depends on the decimals used in the cUSD contract, typically 18.
+            const amountInSmallestUnit = ethers.utils.parseUnits(amount, 18);
 
-            const tx = await signer.sendTransaction(transaction);
-            console.log('Transaction successful:', tx);
+            const tx = await cUSDContract.transfer(merchantWalletAddress, amountInSmallestUnit);
+            console.log('cUSD Transaction successful:', tx);
             setTransactionSuccess(true);
             setTimeout(() => setTransactionSuccess(false), 3000);
         } catch (error) {
-            console.error('Error with MetaMask transaction:', error);
+            console.error('Error with cUSD transaction:', error);
         }
     } else {
         console.error('MetaMask not installed');
     }
 };
-
     return (
         <div className="min-h-screen bg-gradient-to-r from-black to-purple-900 p-4">
             {/* {loading && <Spinner />} */}
